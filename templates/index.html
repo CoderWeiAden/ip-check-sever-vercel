@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>代理出口 IP 有效性检测工具</title>
+    <!-- 引入 Ace Editor -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.3/ace.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.3/ace.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.3/ext-language_tools.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        header {
+            background: #2c3e50;
+            color: white;
+            padding: 20px 30px;
+        }
+        header h1 {
+            margin: 0;
+            font-size: 1.8rem;
+        }
+        .content {
+            display: flex;
+            flex-wrap: wrap;
+            padding: 20px;
+            gap: 20px;
+        }
+        .panel {
+            flex: 1;
+            min-width: 300px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+        .panel h3 {
+            margin-top: 0;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+            color: #2c3e50;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #2c3e50;
+        }
+        input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        /* Ace Editor 容器样式 */
+        .ace-editor-container {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #1e1e1e;
+        }
+        #json-editor {
+            height: 400px;
+            width: 100%;
+            font-size: 14px;
+        }
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: background 0.2s;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #2980b9;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        .result-area {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            font-family: 'Courier New', monospace;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            max-height: 500px;
+            overflow-y: auto;
+            font-size: 13px;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        .success {
+            background: #2ecc71;
+            color: white;
+        }
+        .error {
+            background: #e74c3c;
+            color: white;
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #ccc;
+            border-top-color: #3498db;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            vertical-align: middle;
+            margin-left: 10px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .footer {
+            background: #ecf0f1;
+            padding: 15px 30px;
+            text-align: center;
+            font-size: 12px;
+            color: #7f8c8d;
+        }
+        @media (max-width: 800px) {
+            .content {
+                flex-direction: column;
+            }
+            #json-editor {
+                height: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>🌐 代理出口 IP 有效性检测工具</h1>
+        <p>支持 HTTP/HTTPS/SOCKS5 代理，多站点业务验证（robots.txt + 302跳转）</p>
+    </header>
+    <div class="content">
+        <div class="panel">
+            <h3>🔧 测试配置</h3>
+            <div class="form-group">
+                <label>代理地址 (Proxy URL)</label>
+                <input type="text" id="proxy" placeholder="例如: http://user:pass@host:port 或 socks5://host:port" value="http://t5iyoF3CLp1wWx:Ffm70iNo@accel.ipflygates.com:5001">
+                <small style="color: #666;">支持 HTTP/HTTPS/SOCKS5，带认证请包含 user:pass@</small>
+            </div>
+            <div class="form-group">
+                <label>超时 (秒)</label>
+                <input type="number" id="timeout" value="10" step="1" min="1">
+            </div>
+            <div class="form-group">
+                <label>测试用例 (JSON)</label>
+                <div class="ace-editor-container">
+                    <div id="json-editor">{
+  "test_cases": []
+}</div>
+                </div>
+                <small style="color: #666;">支持语法高亮、行号、自动缩进，请确保 JSON 格式正确</small>
+            </div>
+            <div class="button-group">
+                <button id="run-test">🚀 开始测试</button>
+                <button id="reset-default" style="background:#95a5a6;">恢复默认配置</button>
+            </div>
+        </div>
+        <div class="panel">
+            <h3>📋 测试结果 <span id="status-badge"></span></h3>
+            <div id="result" class="result-area">等待测试...</div>
+        </div>
+    </div>
+    <div class="footer">
+        ⚡ 后端基于 Flask + Python 检测脚本 | 支持 robots.txt 连通性、302跳转 Location 校验
+    </div>
+</div>
+
+<script>
+    // 初始化 Ace Editor
+    let editor = ace.edit("json-editor");
+    editor.setTheme("ace/theme/monokai");       // 深色主题，清晰好看
+    editor.session.setMode("ace/mode/json");    // JSON 语法高亮
+    editor.setOptions({
+        fontSize: "14px",
+        showGutter: true,
+        showPrintMargin: false,
+        highlightActiveLine: true,
+        enableBasicAutocompletion: true,
+        enableLiveAutocompletion: true
+    });
+    // 从后端传递的默认配置（Jinja2 安全渲染）
+    const defaultConfig = {{ default_config | safe }};
+    // 将默认配置格式化为易读 JSON 并设置到编辑器
+    const defaultJsonStr = JSON.stringify(defaultConfig, null, 2);
+    editor.setValue(defaultJsonStr, -1);  // -1 表示光标置于开头
+
+    // 辅助函数：获取编辑器内容，并校验 JSON
+    function getConfigJson() {
+        const value = editor.getValue();
+        try {
+            JSON.parse(value);  // 仅校验格式
+            return value;
+        } catch(e) {
+            alert('JSON 格式错误：' + e.message);
+            return null;
+        }
+    }
+
+    // 设置编辑器内容
+    function setConfigJson(jsonObj) {
+        const str = JSON.stringify(jsonObj, null, 2);
+        editor.setValue(str, -1);
+    }
+
+    // 恢复默认配置
+    document.getElementById('reset-default').addEventListener('click', () => {
+        setConfigJson(defaultConfig);
+        document.getElementById('result').innerHTML = '已恢复默认配置，等待测试...';
+        document.getElementById('status-badge').innerHTML = '';
+    });
+
+    // 开始测试
+    document.getElementById('run-test').addEventListener('click', async () => {
+        const proxy = document.getElementById('proxy').value.trim();
+        const timeout = parseInt(document.getElementById('timeout').value, 10);
+        const configText = getConfigJson();
+        if (!configText) return; // 格式错误已提示
+        if (!proxy) {
+            alert('请填写代理地址');
+            return;
+        }
+
+        const resultDiv = document.getElementById('result');
+        const badgeSpan = document.getElementById('status-badge');
+        resultDiv.innerHTML = '<div class="loading"></div> 正在测试，请稍候...';
+        badgeSpan.innerHTML = '';
+
+        try {
+            const response = await fetch('/test', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    proxy: proxy,
+                    config: configText,
+                    timeout: timeout
+                })
+            });
+            const data = await response.json();
+            if (data.success) {
+                badgeSpan.innerHTML = '<span class="status-badge success">✅ 有效</span>';
+                resultDiv.innerHTML = data.output || '测试通过，但无输出内容';
+            } else {
+                badgeSpan.innerHTML = '<span class="status-badge error">❌ 无效</span>';
+                let errorMsg = data.error || '';
+                let outputMsg = data.output || '';
+                resultDiv.innerHTML = `❌ 测试失败\n\n错误信息：${errorMsg}\n\n脚本输出：\n${outputMsg}`;
+            }
+        } catch (err) {
+            badgeSpan.innerHTML = '<span class="status-badge error">❌ 请求失败</span>';
+            resultDiv.innerHTML = `请求后端失败：${err.message}\n请确保 Flask 服务已启动 (python app.py)`;
+        }
+    });
+</script>
+</body>
+</html>
